@@ -49,7 +49,7 @@ class HandleEventsCommand extends Command
         }
     }
 
-    private function shouldEventBeRan($event): bool
+    public function shouldEventBeRan($event): bool
 
     {
         return (empty($event['minute']) ? true : (int)$event['minute'] === (int)date("i")) &&
