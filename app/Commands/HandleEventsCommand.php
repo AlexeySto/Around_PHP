@@ -10,10 +10,8 @@ use App\EventSender\EventSender;
 
 use App\Models\Event;
 use App\Telegram\TelegramApiImpl;
-use PHPUnit\Framework\Constraint\IsEmpty;
-use function PHPUnit\Framework\isEmpty;
+use App\Queue\RabbitMQ;
 
-//use App\Models\EventDto;
 
 class HandleEventsCommand extends Command
 
@@ -34,10 +32,9 @@ class HandleEventsCommand extends Command
     {
 
         $event = new Event(new SQLite($this->app));
-
         $events = $event->select();
-
-        $eventSender = new EventSender(new TelegramApiImpl($this->app->env('TELEGRAM_TOKEN')));
+        $queue = new RabbitMQ('eventSender');
+        $eventSender = new EventSender(new TelegramApiImpl($this->app->env('TELEGRAM_TOKEN')), $queue);
 
         foreach ($events as $event) {
 
@@ -52,15 +49,24 @@ class HandleEventsCommand extends Command
     public function shouldEventBeRan($event): bool
 
     {
-        return (empty($event['minute']) ? true : (int)$event['minute'] === (int)date("i")) &&
-
-            (empty($event['hour']) ? true : (int)$event['hour'] === (int)date("H")) &&
-
-            (empty($event['day']) ? true : (int)$event['day'] === (int)date("d")) &&
-
-            (empty((int)$event['month']) ? true : (int)$event['month'] === (int)date("m")) &&
-
-            (empty((int)$event['day_of_week']) ? true : (int)$event['day_of_week'] === (int)date("w"));
+        $result = true;
+        $map = [
+            'i' => 'minute',
+            'H' => 'hour',
+            'd' => 'day',
+            'm' => 'month',
+            'w' => 'day_of_week',
+        ];
+        $check = [];
+        
+        foreach ($map as $dateKey => $eventKey) {
+            $check["$eventKey -> $dateKey"] = "$event[$eventKey] -> $event[$eventKey]";
+            if (!($event[$eventKey] === null || (int)date($dateKey) === (int)$event[$eventKey])) {
+                $result = false;
+            }
+        }
+        
+        return $result;
     }
 
 }
